@@ -1,0 +1,20 @@
+﻿@page "/"
+@inject Services.GPTService GPTService
+     
+<h3>Ask GPT</h3>
+<input @bind="userInput" placeholder="Type your question..." />
+<button @onclick="GetResponse">Ask</button>
+     
+<p>@responseFromGPT</p>
+     
+@code {
+    private string userInput = "";
+    private string responseFromGPT = "";
+     
+    private async Task GetResponse()
+    {
+        //responseFromGPT = await GPTService.GetCompletionAsync(userInput);
+        var response = await GPTService.GetCompletionAsync(userInput);
+        responseFromGPT = response.Choices[0].Message.Content;
+    }
+}
