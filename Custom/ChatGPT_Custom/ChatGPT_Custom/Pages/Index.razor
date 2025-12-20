@@ -1,40 +1,88 @@
 ﻿@page "/"
-@inject Services.GPTService GPTService
-     
+@inject Services.GPTService GptService
+@inject IJSRuntime JSRuntime
+
 <h3>Ask GPT</h3>
-<input @bind="userInput" placeholder="Type your question..." size="80%"/>
-<button @onclick="GetResponse">Ask</button>
-     
-<p><b>Me: </b> @myPrompt</p>
-<p><b>ChatGPT:</b> @responseFromGPT</p>
-<br />
-==================================================
+
+<div class="chat-container">
+    <div class="chat-messages">
+        @foreach (var dialog in dialogs)
+        {
+            <div class="chat-message @(dialog.IsPrompt ? "user-message" : "bot-message")">
+                @if (dialog.IsPrompt)
+                {
+                    // The dialog.MessageText is the user input
+                    <span class="message-text">@dialog.MessageText</span>
+                    <img src="images/User.webp" class="message-icon" alt="User icon" />
+                }
+                else
+                {
+                    // The dialog.MessageText is the bot response
+                    <img src="images/Robot.webp" class="message-icon" alt="Bot icon" />
+                    <span class="message-text">@dialog.MessageText</span>
+                })
+            </div>
+        }
+    </div>
+    <br />
+    <br />
+    <br />
+    <br />
+    <br />
+    <br />
+    <br />
+    <br />
+    <div class="chat-input">
+        <textarea rows="1" cols="5" type="text" @bind="userInput" placeholder="Type your question..." />
+        <button @onclick="GetResponse">Ask</button>
+    </div>
+</div>
+
+@* <br />
+============================================
 <p>Create Time: @create_time</p>
 <p>Finish Reason: @finish_reason</p>
 <p>Prompt Tokens: @prompt_tokens</p>
 <p>Completion Tokens: @completion_tokens</p>
 <p>Total Tokens: @total_tokens</p>
-==================================================
+============================================ *@
+
 @code {
     private string userInput = "";
     private string responseFromGPT = "";
-    private string create_time = "";
-    private string finish_reason = "";
-    private string prompt_tokens = "";
-    private string completion_tokens = "";
-    private string total_tokens = "";
+    // private string create_time = "";
+    // private string finish_reason = "";
+    // private string prompt_tokens = "";
+    // private string completion_tokens = "";
+    // private string total_tokens = "";
     private string myPrompt = "";
+
+    List<Dialog> dialogs = new List<Dialog>();
+
     private async Task GetResponse()
     {
-        //responseFromGPT = await GPTService.GetCompletionAsync(userInput);
-        var response = await GPTService.GetCompletionAsync(userInput);
         myPrompt = userInput;
-        userInput = "";
-        responseFromGPT = response.Choices[0].Message.Content;
-        create_time = DateTimeOffset.FromUnixTimeSeconds(response.Created).ToString();
-        finish_reason = response.Choices[0].Finish_Reason;
-        prompt_tokens = response.Usage.Prompt_Tokens.ToString();
-        completion_tokens = response.Usage.Completion_Tokens.ToString();
-        total_tokens = response.Usage.Total_Tokens.ToString();
+        dialogs.Add(new Dialog { MessageText = myPrompt, IsPrompt = true });
+        userInput = ""; // clear the input field
+        var response = await GptService.GetCompletionAsync(myPrompt);
+        // responseFromGPT = response.Choices[0].Message.Content;
+        dialogs.Add(new Dialog { MessageText = response.Choices[0].Message.Content, 
+            IsPrompt = false });
+        // create_time = DateTimeOffset.FromUnixTimeSeconds(response.Created).ToString();
+        // finish_reason = response.Choices[0].Finish_Reason;
+        // prompt_tokens = response.Usage.Prompt_Tokens.ToString();
+        // completion_tokens = response.Usage.Completion_Tokens.ToString();
+        // total_tokens = response.Usage.Total_Tokens.ToString();
+    }
+
+    private class Dialog
+    {
+        public string MessageText { get; set; }
+        public bool IsPrompt { get; set; } = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await JSRuntime.InvokeVoidAsync("scrollToBottom");
     }
 }
