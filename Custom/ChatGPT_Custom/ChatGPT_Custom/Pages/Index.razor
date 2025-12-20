@@ -2,19 +2,39 @@
 @inject Services.GPTService GPTService
      
 <h3>Ask GPT</h3>
-<input @bind="userInput" placeholder="Type your question..." />
+<input @bind="userInput" placeholder="Type your question..." size="80%"/>
 <button @onclick="GetResponse">Ask</button>
      
-<p>@responseFromGPT</p>
-     
+<p><b>Me: </b> @myPrompt</p>
+<p><b>ChatGPT:</b> @responseFromGPT</p>
+<br />
+==================================================
+<p>Create Time: @create_time</p>
+<p>Finish Reason: @finish_reason</p>
+<p>Prompt Tokens: @prompt_tokens</p>
+<p>Completion Tokens: @completion_tokens</p>
+<p>Total Tokens: @total_tokens</p>
+==================================================
 @code {
     private string userInput = "";
     private string responseFromGPT = "";
-     
+    private string create_time = "";
+    private string finish_reason = "";
+    private string prompt_tokens = "";
+    private string completion_tokens = "";
+    private string total_tokens = "";
+    private string myPrompt = "";
     private async Task GetResponse()
     {
         //responseFromGPT = await GPTService.GetCompletionAsync(userInput);
         var response = await GPTService.GetCompletionAsync(userInput);
+        myPrompt = userInput;
+        userInput = "";
         responseFromGPT = response.Choices[0].Message.Content;
+        create_time = DateTimeOffset.FromUnixTimeSeconds(response.Created).ToString();
+        finish_reason = response.Choices[0].Finish_Reason;
+        prompt_tokens = response.Usage.Prompt_Tokens.ToString();
+        completion_tokens = response.Usage.Completion_Tokens.ToString();
+        total_tokens = response.Usage.Total_Tokens.ToString();
     }
 }
