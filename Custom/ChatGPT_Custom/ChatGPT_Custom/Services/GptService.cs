@@ -34,6 +34,16 @@ public class GPTService
         public float? Max_Tokens { get; set; }
         [JsonPropertyName("n")]
         public int? N { get; set; }
+        [JsonPropertyName("stream")]
+        public bool? Stream { get; set; }
+        [JsonPropertyName("stream_options")]
+        public Stream_Options? Stream_Options { get; set; }
+    }
+    
+    public class Stream_Options
+    {
+        [JsonPropertyName("include_usage")]
+        public bool? Include_Usage { get; set; }
     }
 
     public class MessageList
@@ -85,6 +95,67 @@ public class GPTService
     }
     #endregion
 
+    #region [3-1] Classes for the chat completion stream object
+    public class ChatCompletionStream
+    {
+        [JsonPropertyName("id")]
+        public string Id { get; set; }
+        [JsonPropertyName("object")]
+        public string Object { get; set; }
+        [JsonPropertyName("created")]
+        public int Created { get; set; }
+        [JsonPropertyName("model")]
+        public string Model { get; set; }
+        [JsonPropertyName("choices")]
+        public List<ChoiceStream> Choices { get; set; }
+        [JsonPropertyName("usage")]
+        public Usage Usage { get; set; }
+    }
+
+    public class ChoiceStream
+    {
+        [JsonPropertyName("delta")]
+        public DeltaStream Delta { get; set; }
+        [JsonPropertyName("finish_reason")]
+        public string Finish_Reason { get; set; }
+        [JsonPropertyName("index")]
+        public int Index { get; set; }
+    }
+
+    public class DeltaStream
+    {
+        [JsonPropertyName("role")]
+        public string? Role { get; set; }
+        [JsonPropertyName("content")]
+        public string? Content { get; set; }
+        [JsonPropertyName("refusal")]
+        public string? Refusal { get; set; }
+    }
+    #endregion
+    
+    #region [3-2] Classes for error handling
+    public class GPTErrorResponse
+    {
+        [JsonPropertyName("error")]
+        public GPTError Error { get; set; }
+    }
+
+    public class GPTError
+    {
+        [JsonPropertyName("message")]
+        public string Message { get; set; }
+
+        [JsonPropertyName("type")]
+        public string Type { get; set; }
+
+        [JsonPropertyName("param")]
+        public string Param { get; set; }
+
+        [JsonPropertyName("code")]
+        public string Code { get; set; }
+    }
+    #endregion
+    
     #region [4] Chat methods
     public async Task<ChatCompletion> GetCompletionAsync(string prompt)
     {
@@ -122,6 +193,56 @@ public class GPTService
         ChatCompletion result = JsonSerializer.Deserialize<ChatCompletion>(responseBody);
         //return result.Choices[0].Message.Content.ToString();
         return result;
+    }
+    
+    public async IAsyncEnumerable<ChatCompletionStream> GetCompletionStreamAsync(string prompt)
+    {
+        string? readLine = null;
+
+        GPTRequestBody payload = new()
+        {
+            Model = "gpt-3.5-turbo",
+            Messages = new List<MessageList>()
+            {
+                //new MessageList{ Role = "system", Name ="Jason",
+                    //Content="You are a helpful assistant of the Udemy course named [How to connect to ChatGPT using C#]."},
+                new MessageList{Role = "user", Content= prompt}
+            },
+            Max_Tokens = 1000,
+            N = 1,
+            Stream = true,
+            Stream_Options = new Stream_Options { Include_Usage = true }
+        };
+
+        var response = await _httpClient.PostAsync(Endpoint,
+            new StringContent(JsonSerializer.Serialize(payload),
+            Encoding.UTF8,
+            "application/json"));
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorMessage = await response.Content.ReadAsStringAsync();
+            GPTErrorResponse error = JsonSerializer.Deserialize<GPTErrorResponse>(errorMessage);
+            throw new Exception($"Error: {error.Error.Message}");
+        }
+
+        using (Stream responseStream = await response.Content.ReadAsStreamAsync())
+        using (StreamReader responseBody = new StreamReader(responseStream))
+        {
+            while ((readLine = await responseBody.ReadLineAsync()) != null)
+            {
+                if (readLine != "" && readLine != "data: [DONE]")
+                {
+                    ChatCompletionStream result = JsonSerializer.Deserialize<ChatCompletionStream>(readLine.Replace("data:", ""));
+                    yield return result;
+                }
+                else if (readLine == "data: [DONE]")
+                {
+                    break;
+                }
+            }
+                
+        }
     }
     #endregion
 }

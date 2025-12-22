@@ -1,4 +1,5 @@
 ﻿@page "/"
+@using System.Text.RegularExpressions
 @inject Services.GPTService GptService
 @inject IJSRuntime JSRuntime
 
@@ -17,7 +18,7 @@
                 else
                 {
                     <img src="images/Robot.webp" class="message-icon" alt="Bot icon" />
-                    <span class="message-text">@dialog.MessageText</span>
+                    <span class="message-text">@((MarkupString)dialog.MessageText)</span>
                 }
             </div>
         }
@@ -25,7 +26,7 @@
 
     <div class="chat-input">
         <textarea rows="1" @bind="userInput" placeholder="Type your question..."></textarea>
-        <button @onclick="GetResponse" disabled="@isLoading">@(isLoading ? "..." : "Ask")</button>
+        <button @onclick="GetResponseStream" disabled="@isLoading">@(isLoading ? "..." : "Ask")</button>
     </div>
 </div>
 
@@ -65,11 +66,111 @@
             isLoading = false;
         }
     }
+    private async Task GetResponseStream()
+    {
+        myPrompt = userInput;
+        dialogs.Add(new Dialog { MessageText = myPrompt, IsPrompt = true });
+        userInput = "";
 
+        // Create a temporary Dialog object to receive returning chunks
+        Dialog? lastDialog = null;
+
+        // To create a new dialogs record to contain the incoming chunk messages
+        dialogs.Add(new Dialog { MessageText = "", IsPrompt = false });
+
+        try
+        {
+            // Start to receive chunks from the backend
+            await foreach (var item in GptService.GetCompletionStreamAsync(myPrompt))
+            {
+                // Make sure the returned chunk has data
+                // and the content field of the Delta object is not null.
+                if (item.Choices.Count > 0 && item.Choices[0].Delta.Content != null)
+                {
+                    if (lastDialog == null)
+                    {
+                        // Point the temporary dialogs record to the last dialogs object.
+                        lastDialog = dialogs.LastOrDefault();
+                    }
+                    else if (lastDialog != null)
+                    {
+                        // Combining the returning chunks together
+                        lastDialog.MessageText += item.Choices[0].Delta.Content;
+                    }
+                }
+                else if (item.Choices.Count > 0 && item.Choices[0].Delta.Content == null)
+                {
+                    // If the finish_reason is not null
+                    if (item.Choices[0].Finish_Reason != null)
+                    {
+                        // Write the finish_reason on the page
+                        lastDialog.MessageText += $"<p><b><i>Finish_Reason = {item.Choices[0].Finish_Reason}</i></b></p>";
+                    }
+                    // else if (item.Choices[0].Finish_Reason == "stop")
+                    // {
+                    //     // If the finish_reason is "stop", then simply break the foreach loop
+                    //     break;
+                    // }
+                }
+                else if (item.Usage != null)
+                {
+                    lastDialog.MessageText += $"<p><b><i>Prompt tokens = {item.Usage.Prompt_Tokens}</i></b><br />";
+                    lastDialog.MessageText += $"<b><i>Completion tokens = {item.Usage.Completion_Tokens}</i></b><br />";
+                    lastDialog.MessageText += $"<b><i>Total tokens = {item.Usage.Total_Tokens}</i></b></p>";
+                }
+
+                StateHasChanged();  // Inform Blazor to refresh the index.razor page to reflect the change
+                await JSRuntime.InvokeVoidAsync("scrollToBottom"); // Scroll to the bottom of the page
+                //await OnAfterRenderAsync(false);
+                lastDialog.MessageText = ConvertMarkdownToHTML(lastDialog.MessageText);  // Convert the markdown to HTML
+                Thread.Sleep(150);  // Prevent the chunks from being displayed too fast to the page, put the page to sleep for 150 milliseconds.
+
+            }
+        }
+        catch (Exception ex)
+        {
+            lastDialog = dialogs.LastOrDefault();
+            lastDialog.MessageText += $"<p style='color:red;'><b><i>{ex.Message}</i></b></p>";
+        }
+    }
     private class Dialog
     {
         public string MessageText { get; set; } = "";
         public bool IsPrompt { get; set; } = true;
+    }
+    
+    private string ConvertMarkdownToHTML(string message)
+    {
+        string text = message;
+        // 1. Bold font **text**
+        text = Regex.Replace(text, @"\*\*(.+)\*\*", "<b>$1</b>");
+
+        // 2. Italic font *text*
+        text = Regex.Replace(text, @"\*(.+)\*", "<i>$1</i>");
+
+        // 3. H1 title # text
+        text = Regex.Replace(text, @"(?m)^# (.+)", "<h1>$1</h1>");
+
+        // 4. H2 title ## text
+        text = Regex.Replace(text, @"(?m)^## (.+)", "<h2>$1</h2>");
+
+        // 5. H3 title ### text
+        text = Regex.Replace(text, @"(?m)^### (.+)", "<h3>$1</h3>");
+        text = Regex.Replace(text, @"(?m)^#### (.+)", "<h3>$1</h3>");
+
+        // 6. Seperator ---
+        text = Regex.Replace(text, @"(?m)---$", "<hr/>");
+
+        // 7. Email
+        //   style 1: <email@example.com>
+        text = Regex.Replace(text, @"<([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})>", "<a href='mailto:$1'>$1</a>");
+        //   style 2: [Example email](mailto:email@example.com>)
+        text = Regex.Replace(text, @"\[(.+?)\]\(mailto:(.+?)\)", "<a href='mailto:$2'>$1</a>");
+
+        // 8. URL: http://example.com or https://example.com
+        text = Regex.Replace(text, @"\[(.+?)\]\((https?:\/\/[^\s]+)\)", "<a href='$2'>$1</a>");
+
+        return text;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
