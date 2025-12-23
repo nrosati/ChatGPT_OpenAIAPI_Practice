@@ -124,13 +124,16 @@
             MessageText = _myPrompt, // Add the prompt to the dialogs list
             IsPrompt = true // This is a user prompt, not a bot response
         });
+        await JSRuntime.InvokeVoidAsync("scrollToBottom");
         _userInput = ""; // clear the input field
         dialogs.Add(new Dialog
         {
             MessageText = "", // Add an empty message to the dialogs list
             IsPrompt = false // This is a bot response, not a user prompt
         });
+        await JSRuntime.InvokeVoidAsync("scrollToBottom");
         lastDialog = dialogs.LastOrDefault();
+        
         var response = GPTService.GetStreamingResponseAsync(_myPrompt);
         
         await foreach (StreamingChatCompletionUpdate completionUpdate in response)
