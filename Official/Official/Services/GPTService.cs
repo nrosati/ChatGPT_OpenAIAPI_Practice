@@ -1,3 +1,4 @@
+using System.ClientModel;
 using DotNetEnv;
 using OpenAI.Chat;
 
@@ -50,5 +51,30 @@ public class GPTService
         ChatCompletion result = await client.CompleteChatAsync(prompt);
         return result;
     }
-    #endregion    
+    #endregion
+    
+    #region [03] Chat completion method - streaming mode
+    public CollectionResult<StreamingChatCompletionUpdate> GetStreamingResponse(string prompt)
+    {
+        List<ChatMessage> messages = [
+            ChatMessage.CreateUserMessage(prompt)
+        ];
+        CollectionResult<StreamingChatCompletionUpdate> completionUpdates = 
+            client.CompleteChatStreaming(messages);
+        return completionUpdates;
+    }
+
+    public AsyncCollectionResult<StreamingChatCompletionUpdate> GetStreamingResponseAsync(string prompt)
+    {
+        ChatCompletionOptions options = new ChatCompletionOptions();
+        options.MaxOutputTokenCount = 1000;
+        List<ChatMessage> messages = [
+            ChatMessage.CreateSystemMessage("Your name is Maximus Decimus Meridius."),
+            ChatMessage.CreateUserMessage(prompt)
+        ];
+        AsyncCollectionResult<StreamingChatCompletionUpdate> completionUpdates =
+            client.CompleteChatStreamingAsync(messages, options);
+        return completionUpdates;
+    }
+    #endregion
 }
