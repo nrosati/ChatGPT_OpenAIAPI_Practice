@@ -1,7 +1,7 @@
 ﻿using OpenAI.Chat;
 using Microsoft.Extensions.Configuration;
 using DotNetEnv;
-
+using System.ClientModel;
 /*var config = new ConfigurationBuilder()
     .AddUserSecrets<Program>()
     .Build();
@@ -50,5 +50,18 @@ ChatClient client = new ChatClient(model: "gpt-4o-mini",
      apiKey: Environment.GetEnvironmentVariable("OPENAI_API_KEY"));
 
 Console.Write("Prompt: ");
+/*Non Streaming mode
 ChatCompletion completion = client.CompleteChat(Console.ReadLine());
 Console.WriteLine($"Assistant:  {completion.Content[0].Text}");
+*/
+//Streaming mode
+CollectionResult<StreamingChatCompletionUpdate> completionUpdates = 
+    client.CompleteChatStreaming(Console.ReadLine());
+Console.Write("Response: ");
+foreach (StreamingChatCompletionUpdate completionUpdate in completionUpdates)
+{
+    if (completionUpdate.ContentUpdate.Count > 0)
+    {
+        Console.Write(completionUpdate.ContentUpdate[0].Text);
+    }
+}
