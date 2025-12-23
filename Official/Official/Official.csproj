@@ -11,4 +11,10 @@
       <Folder Include="wwwroot\js\" />
     </ItemGroup>
 
+    <ItemGroup>
+      <PackageReference Include="DotNetEnv" Version="3.1.1" />
+      <PackageReference Include="OpenAI" Version="2.8.0" />
+      <PackageReference Include="System.Text.Json" Version="10.0.1" />
+    </ItemGroup>
+
 </Project>
