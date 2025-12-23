@@ -48,4 +48,7 @@ var apiKeyTest = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
 
 ChatClient client = new ChatClient(model: "gpt-4o-mini",
      apiKey: Environment.GetEnvironmentVariable("OPENAI_API_KEY"));
-    
+
+Console.Write("Prompt: ");
+ChatCompletion completion = client.CompleteChat(Console.ReadLine());
+Console.WriteLine($"Assistant:  {completion.Content[0].Text}");
