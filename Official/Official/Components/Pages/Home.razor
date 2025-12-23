@@ -1,24 +1,95 @@
 ﻿@page "/"
+@inject Services.GPTService GPTService
+@using OpenAI.Chat
+@using System.Text.RegularExpressions
+@inject IJSRuntime JSRuntime
+@rendermode InteractiveServer
 
 <PageTitle>Home</PageTitle>
 
 <h1>Ask OpenAI GPT</h1>
 
 <div class="chat-container">
-    <div class="chat-messages">
-        <div class="chat-message">
-        </div>
+    <div class="chat-messages" id="chatMessages">
+        @foreach (var dialog in dialogs)
+        {
+            <div class="chat-message @(dialog.IsPrompt ? "user-message" : "bot-message")">
+                @if (dialog.IsPrompt)
+                {
+                    <span class="message-text">@dialog.MessageText</span>
+                    <img src="images/User.webp" class="message-icon" alt="User icon" />
+                }
+                else
+                {
+                    <img src="images/Robot.webp" class="message-icon" alt="Bot icon" />
+                    <span class="message-text">@((MarkupString)dialog.MessageText)</span>
+                }
+            </div>
+        }
     </div>
-    <br />
-    <br />
-    <br />
-    <br />
-    <br />
-    <br />
-    <br />
-    <br />
+
     <div class="chat-input">
-        <textarea rows="1" cols="5" type="text" />
-        <button>Ask</button>
+        <textarea rows="1" @bind="_userInput" placeholder="Input your prompt here..."></textarea>
+        <button @onclick="AskOpenAIAsync">Ask</button>
     </div>
 </div>
+
+@code {
+    private string _userInput = string.Empty;
+    private string _myPrompt = string.Empty;
+    private List<Dialog> dialogs = new();
+
+    private bool _shouldScroll;
+
+    private class Dialog
+    {
+        public string MessageText { get; set; } = "";
+        public bool IsPrompt { get; set; } = true;
+    }
+
+    private string ConvertMarkdownToHTML(string message)
+    {
+        var text = message;
+        text = Regex.Replace(text, @"\*\*(.+?)\*\*", "<b>$1</b>");
+        text = Regex.Replace(text, @"\*(.+?)\*", "<i>$1</i>");
+        text = Regex.Replace(text, @"(?m)^# (.+)", "<h1>$1</h1>");
+        text = Regex.Replace(text, @"(?m)^## (.+)", "<h2>$1</h2>");
+        text = Regex.Replace(text, @"(?m)^### (.+)", "<h3>$1</h3>");
+        text = Regex.Replace(text, @"(?m)^#### (.+)", "<h3>$1</h3>");
+        text = Regex.Replace(text, @"(?m)---$", "<hr />");
+        text = Regex.Replace(text, @"\[(.+?)\]\(mailto:(.+?)\)", "<a href='mailto:$2'>$1</a>");
+        text = Regex.Replace(text, @"\[(.+?)\]\((https?:\/\/[^\s]+)\)", "<a href='$2'>$1</a>");
+        return text;
+    }
+
+    private async Task AskOpenAIAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_userInput))
+            return;
+
+        _myPrompt = _userInput;
+
+        dialogs.Add(new Dialog { MessageText = _myPrompt, IsPrompt = true });
+        _userInput = "";
+        _shouldScroll = true;
+
+        var response = await GPTService.GetResponseAsync(_myPrompt);
+
+        dialogs.Add(new Dialog
+        {
+            MessageText = ConvertMarkdownToHTML(response.Content[0].Text),
+            IsPrompt = false
+        });
+
+        _shouldScroll = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_shouldScroll)
+        {
+            _shouldScroll = false;
+            await JSRuntime.InvokeVoidAsync("scrollToBottom");
+        }
+    }
+}

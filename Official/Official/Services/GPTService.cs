@@ -19,7 +19,6 @@ public class GPTService
     /// <param name="gptModel">The GPT model name. The default is gpt-4o.</param>
     public GPTService(string gptModel = "gpt-4o")
     {
-        Console.WriteLine("EnvPath : " + envPath);
         Env.Load(envPath);
         client = new ChatClient(
             model: gptModel,
