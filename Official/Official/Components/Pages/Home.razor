@@ -63,6 +63,26 @@
         return text;
     }
 
+    private void AskOpenAI()
+    {
+        _myPrompt = _userInput; // Read value from the input field to the prompt variable
+        // Create a dialog to store the user prompt
+        dialogs.Add(new Dialog
+        {
+            MessageText = _myPrompt, // Add the prompt to the dialogs list
+            IsPrompt = true // This is a user prompt, not a bot response
+        });
+        _userInput = ""; // clear the input field
+        var response = GPTService.GetResponse(_myPrompt); // Call the GPT service to get the response
+        dialogs.Add(new Dialog
+        {
+            MessageText = ConvertMarkdownToHTML(response.Content[0].Text), // Add the response to the dialogs list
+            IsPrompt = false // This is a bot response, not a user prompt
+        });
+        StateHasChanged();
+        JSRuntime.InvokeVoidAsync("scrollToBottom");
+    }
+    
     private async Task AskOpenAIAsync()
     {
         if (string.IsNullOrWhiteSpace(_userInput))
@@ -117,25 +137,23 @@
 
     private async void AskOpenAIStreamingAsync()
     {
+        bool notToolUsage = false;
+
         _myPrompt = _userInput; // Read value from the input field to the prompt variable
         // Create a dialog to store the user prompt
         dialogs.Add(new Dialog
-        {
-            MessageText = _myPrompt, // Add the prompt to the dialogs list
-            IsPrompt = true // This is a user prompt, not a bot response
-        });
-        await JSRuntime.InvokeVoidAsync("scrollToBottom");
+            {
+                MessageText = _myPrompt, // Add the prompt to the dialogs list
+                IsPrompt = true // This is a user prompt, not a bot response
+            });
         _userInput = ""; // clear the input field
         dialogs.Add(new Dialog
-        {
-            MessageText = "", // Add an empty message to the dialogs list
-            IsPrompt = false // This is a bot response, not a user prompt
-        });
-        await JSRuntime.InvokeVoidAsync("scrollToBottom");
+            {
+                MessageText = "", // Add an empty message to the dialogs list
+                IsPrompt = false // This is a bot response, not a user prompt
+            });
         lastDialog = dialogs.LastOrDefault();
-        
-        var response = GPTService.GetStreamingResponseAsync(_myPrompt);
-        
+        var response = GPTService.GetStreamingResponseAsync(_myPrompt); // Call the GPT service to get the response
         await foreach (StreamingChatCompletionUpdate completionUpdate in response)
         {
             if (completionUpdate.ContentUpdate.Count > 0)
@@ -149,14 +167,26 @@
 
             if (completionUpdate.FinishReason != null)
             {
-                lastDialog.MessageText += "<br /><hr />";
-                lastDialog.MessageText += $"<p style='color:blue;'>Finish reason = <b><i>{completionUpdate.FinishReason}</i></b></p>";
-                lastDialog.MessageText += "<hr />";
+                switch (completionUpdate.FinishReason)
+                {
+                    case ChatFinishReason.Length:
+                        lastDialog.MessageText += "<br /><hr />";
+                        lastDialog.MessageText += $"<p style='color:red;'>Finish reason = <b><i>{completionUpdate.FinishReason}</i></b></p>";
+                        lastDialog.MessageText += "<hr />";
+                        break;
+                    case ChatFinishReason.Stop:
+                    default:
+                        lastDialog.MessageText += "<br /><hr />";
+                        lastDialog.MessageText += $"<p style='color:blue;'>Finish reason = <b><i>{completionUpdate.FinishReason}</i></b></p>";
+                        lastDialog.MessageText += "<hr />";
+                        break;
+                }
+                notToolUsage = true;
                 StateHasChanged();
                 await JSRuntime.InvokeVoidAsync("scrollToBottom");
             }
 
-            if (completionUpdate.Usage != null)
+            if (completionUpdate.Usage != null && notToolUsage == true)
             {
                 lastDialog.MessageText += "<p style='color:green;'>";
                 lastDialog.MessageText += $"Prompt Token = <b><i>{completionUpdate.Usage.InputTokenCount}</i></b><br />";
@@ -166,6 +196,7 @@
                 StateHasChanged();
                 await JSRuntime.InvokeVoidAsync("scrollToBottom");
             }
+
         }
     }
 
