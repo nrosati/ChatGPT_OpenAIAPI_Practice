@@ -47,73 +47,73 @@ public class GPTService
     public ChatCompletion GetResponse(string prompt)
     {
         // 01 - The old method which won't call Tools.
-            //ChatCompletion result = client.CompleteChat(prompt);
-            //return result;
+        //ChatCompletion result = client.CompleteChat(prompt);
+        //return result;
 
-            // 02 - The method that will call Tools.
-            // Assign options to this API call.
-            // ChatCompletionOptions options = new()
-            // {
-            //     Tools = { getCurrentDateTimeTool },
-            //     MaxOutputTokenCount = 500
-            // };
-            
-            ChatCompletionOptions options = new();
-            foreach (var tool in toolRegistry.GetAllTools())
+        // 02 - The method that will call Tools.
+        // Assign options to this API call.
+        // ChatCompletionOptions options = new()
+        // {
+        //     Tools = { getCurrentDateTimeTool },
+        //     MaxOutputTokenCount = 500
+        // };
+        
+        ChatCompletionOptions options = new();
+        foreach (var tool in toolRegistry.GetAllTools())
+        {
+            options.Tools.Add(tool);
+        }
+        
+        List<ChatMessage> message = [
+            //ChatMessage.CreateSystemMessage("Your name is Jason, you are a helpful assistant."),
+            ChatMessage.CreateUserMessage(prompt)
+            ];
+
+        ChatCompletion result;
+        bool requiresAction;
+
+        do
+        {
+            requiresAction = false;
+            result = client.CompleteChat(message, options);
+            switch (result.FinishReason)
             {
-                options.Tools.Add(tool);
-            }
-            
-            List<ChatMessage> message = [
-                ChatMessage.CreateSystemMessage("Your name is Jason, you are a helpful assistant."),
-                ChatMessage.CreateUserMessage(prompt)
-                ];
-
-            ChatCompletion result;
-            bool requiresAction;
-
-            do
-            {
-                requiresAction = false;
-                result = client.CompleteChat(message, options);
-                switch (result.FinishReason)
-                {
-                    case ChatFinishReason.Stop:
-                    case ChatFinishReason.Length:
-                        {
-                            message.Add(new AssistantChatMessage(result));
-                            break;
-                        }
-                    case ChatFinishReason.ToolCalls:
+                case ChatFinishReason.Stop:
+                case ChatFinishReason.Length:
                     {
-                        // message.Add(new AssistantChatMessage(result));
-                        // foreach (ChatToolCall toolCall in result.ToolCalls)
-                        // {
-                        //     switch (toolCall.FunctionName)
-                        //     {
-                        //         case nameof(GetCurrentDateTime):
-                        //         {
-                        //             string toolResult = GetCurrentDateTime();
-                        //             message.Add(new ToolChatMessage(toolCall.Id, toolResult));
-                        //             break;
-                        //         }
-                        //     }
-                        // }
-                        // requiresAction = true;
-                        // break;
                         message.Add(new AssistantChatMessage(result));
-                        foreach (var toolCall in result.ToolCalls)
-                        {
-                            using JsonDocument doc = JsonDocument.Parse(toolCall.FunctionArguments);
-                            string toolResult = toolRegistry.InvokeAsync(toolCall.FunctionName, doc.RootElement).GetAwaiter().GetResult();
-                            message.Add(new ToolChatMessage(toolCall.Id, toolResult));
-                        }
-                        requiresAction = true;
                         break;
                     }
+                case ChatFinishReason.ToolCalls:
+                {
+                    // message.Add(new AssistantChatMessage(result));
+                    // foreach (ChatToolCall toolCall in result.ToolCalls)
+                    // {
+                    //     switch (toolCall.FunctionName)
+                    //     {
+                    //         case nameof(GetCurrentDateTime):
+                    //         {
+                    //             string toolResult = GetCurrentDateTime();
+                    //             message.Add(new ToolChatMessage(toolCall.Id, toolResult));
+                    //             break;
+                    //         }
+                    //     }
+                    // }
+                    // requiresAction = true;
+                    // break;
+                    message.Add(new AssistantChatMessage(result));
+                    foreach (var toolCall in result.ToolCalls)
+                    {
+                        using JsonDocument doc = JsonDocument.Parse(toolCall.FunctionArguments);
+                        string toolResult = toolRegistry.InvokeAsync(toolCall.FunctionName, doc.RootElement).GetAwaiter().GetResult();
+                        message.Add(new ToolChatMessage(toolCall.Id, toolResult));
+                    }
+                    requiresAction = true;
+                    break;
                 }
-            } while (requiresAction);
-            return result;
+            }
+        } while (requiresAction);
+        return result;
     }
 
     /// <summary>
@@ -124,87 +124,87 @@ public class GPTService
     /// <returns>The chat completion object returned from the OpenAI API.</returns>
     public async Task<ChatCompletion> GetResponseAsync(string prompt)
     {
-            //ChatCompletion result = await client.CompleteChatAsync(prompt);
-            //return result;
+        //ChatCompletion result = await client.CompleteChatAsync(prompt);
+        //return result;
 
-            // ChatCompletionOptions options = new()
-            // {
-            //     Tools = { getCurrentDateTimeTool, getMyFriendsBirthdayTool },
-            //     MaxOutputTokenCount = 500
-            // };
-            
-            ChatCompletionOptions options = new();
-            foreach (var tool in toolRegistry.GetAllTools())
+        // ChatCompletionOptions options = new()
+        // {
+        //     Tools = { getCurrentDateTimeTool, getMyFriendsBirthdayTool },
+        //     MaxOutputTokenCount = 500
+        // };
+        
+        ChatCompletionOptions options = new();
+        foreach (var tool in toolRegistry.GetAllTools())
+        {
+            options.Tools.Add(tool);
+        }
+        options.MaxOutputTokenCount = 500;
+
+        List<ChatMessage> message = [
+            ChatMessage.CreateSystemMessage("Your name is Jason, you are a helpful assistant."),
+            ChatMessage.CreateUserMessage(prompt)
+            ];
+
+        ChatCompletion result;
+        bool requiresAction;
+
+        do
+        {
+            requiresAction = false;
+            result = await client.CompleteChatAsync(message, options);
+            switch (result.FinishReason)
             {
-                options.Tools.Add(tool);
+                case ChatFinishReason.Stop:
+                case ChatFinishReason.Length:
+                    {
+                        message.Add(new AssistantChatMessage(result));
+                        break;
+                    }
+                case ChatFinishReason.ToolCalls:
+                    {
+                        // message.Add(new AssistantChatMessage(result));
+                        // foreach (ChatToolCall toolCall in result.ToolCalls)
+                        // {
+                        //     switch (toolCall.FunctionName)
+                        //     {
+                        //         case nameof(GetCurrentDateTime):
+                        //             {
+                        //                 string toolResult = GetCurrentDateTime();
+                        //                 message.Add(new ToolChatMessage(toolCall.Id, toolResult));
+                        //                 break;
+                        //             }
+                        //         case nameof(GetMyFriendsBirthday):
+                        //             {
+                        //                 using JsonDocument argumentsJson = JsonDocument.Parse(toolCall.FunctionArguments);
+                        //                 bool hasBirthday = argumentsJson.RootElement.TryGetProperty("birthday", out JsonElement birthday);
+                        //
+                        //                 if (!hasBirthday)
+                        //                 {
+                        //                     throw new ArgumentNullException(nameof(birthday), "The birthday argument is required.");
+                        //                 }
+                        //
+                        //                 string toolResult = GetMyFriendsBirthday(birthday.ToString());
+                        //                 message.Add(new ToolChatMessage(toolCall.Id, toolResult));
+                        //                 break;
+                        //             }
+                        //     }
+                        // }
+                        // requiresAction = true;
+                        // break;
+                        
+                        message.Add(new AssistantChatMessage(result));
+                        foreach (var toolCall in result.ToolCalls)
+                        {
+                            using JsonDocument doc = JsonDocument.Parse(toolCall.FunctionArguments);
+                            string toolResult = await toolRegistry.InvokeAsync(toolCall.FunctionName, doc.RootElement);
+                            message.Add(new ToolChatMessage(toolCall.Id, toolResult));
+                        }
+                        requiresAction = true;
+                        break;
+                    }
             }
-            options.MaxOutputTokenCount = 500;
-
-            List<ChatMessage> message = [
-                ChatMessage.CreateSystemMessage("Your name is Jason, you are a helpful assistant."),
-                ChatMessage.CreateUserMessage(prompt)
-                ];
-
-            ChatCompletion result;
-            bool requiresAction;
-
-            do
-            {
-                requiresAction = false;
-                result = await client.CompleteChatAsync(message, options);
-                switch (result.FinishReason)
-                {
-                    case ChatFinishReason.Stop:
-                    case ChatFinishReason.Length:
-                        {
-                            message.Add(new AssistantChatMessage(result));
-                            break;
-                        }
-                    case ChatFinishReason.ToolCalls:
-                        {
-                            // message.Add(new AssistantChatMessage(result));
-                            // foreach (ChatToolCall toolCall in result.ToolCalls)
-                            // {
-                            //     switch (toolCall.FunctionName)
-                            //     {
-                            //         case nameof(GetCurrentDateTime):
-                            //             {
-                            //                 string toolResult = GetCurrentDateTime();
-                            //                 message.Add(new ToolChatMessage(toolCall.Id, toolResult));
-                            //                 break;
-                            //             }
-                            //         case nameof(GetMyFriendsBirthday):
-                            //             {
-                            //                 using JsonDocument argumentsJson = JsonDocument.Parse(toolCall.FunctionArguments);
-                            //                 bool hasBirthday = argumentsJson.RootElement.TryGetProperty("birthday", out JsonElement birthday);
-                            //
-                            //                 if (!hasBirthday)
-                            //                 {
-                            //                     throw new ArgumentNullException(nameof(birthday), "The birthday argument is required.");
-                            //                 }
-                            //
-                            //                 string toolResult = GetMyFriendsBirthday(birthday.ToString());
-                            //                 message.Add(new ToolChatMessage(toolCall.Id, toolResult));
-                            //                 break;
-                            //             }
-                            //     }
-                            // }
-                            // requiresAction = true;
-                            // break;
-                            
-                            message.Add(new AssistantChatMessage(result));
-                            foreach (var toolCall in result.ToolCalls)
-                            {
-                                using JsonDocument doc = JsonDocument.Parse(toolCall.FunctionArguments);
-                                string toolResult = await toolRegistry.InvokeAsync(toolCall.FunctionName, doc.RootElement);
-                                message.Add(new ToolChatMessage(toolCall.Id, toolResult));
-                            }
-                            requiresAction = true;
-                            break;
-                        }
-                }
-            } while (requiresAction);
-            return result;
+        } while (requiresAction);
+        return result;
     }
     #endregion
     
@@ -362,15 +362,13 @@ public class GPTService
             //if (tool.FunctionName == "GetCurrentDateTime")
             //    options.ToolChoice = ChatToolChoice.CreateFunctionChoice(tool.FunctionName);
         }
-        //options.ToolChoice = ChatToolChoice.CreateFunctionChoice("GetCurrentDateTime");
         options.ToolChoice = ChatToolChoice.CreateAutoChoice();
-        //options.ToolChoice = ChatToolChoice.CreateNoneChoice();
         options.MaxOutputTokenCount = 500;
 
         List<ChatMessage> messages = [
             ChatMessage.CreateSystemMessage("Your name is Jason. You are a helpful assistant."),
             ChatMessage.CreateUserMessage(prompt)
-            ];
+        ];
         AsyncCollectionResult<StreamingChatCompletionUpdate> completionUpdates;
         bool requiresAction;
 
